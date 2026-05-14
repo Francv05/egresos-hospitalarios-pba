@@ -38,23 +38,47 @@ st.set_page_config(
 # -----------------------------------------------------------------------------
 @st.cache_data(show_spinner="Cargando dataset...")
 def cargar():
-    """Carga datos desde el parquet limpio o, si no existe, desde los CSV."""
+    """Carga datos desde parquet, o descarga los CSV si no existen."""
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
     ROOT = Path(__file__).resolve().parent.parent
     parquet = ROOT / "data" / "processed" / "egresos_2016_2020.parquet"
+
     if parquet.exists():
         return pd.read_parquet(parquet)
-    return cargar_dataset()
+
+    raw_dir = ROOT / "data" / "raw"
+    csvs = list(raw_dir.glob("egresos-*.csv")) if raw_dir.exists() else []
+
+    if not csvs:
+        import requests
+        URLS = {
+            2016: "https://catalogo.datos.gba.gob.ar/dataset/baf07a7a-8cd2-47ad-bae0-52c6f3b45bb7/resource/66e005f4-d88b-4abf-9797-5809def5131e/download/egresos-2016.csv",
+            2017: "https://catalogo.datos.gba.gob.ar/dataset/baf07a7a-8cd2-47ad-bae0-52c6f3b45bb7/resource/3f9fd7e0-5d92-4b8c-a87b-951607637e89/download/egresos-2017.csv",
+            2018: "https://catalogo.datos.gba.gob.ar/dataset/baf07a7a-8cd2-47ad-bae0-52c6f3b45bb7/resource/ddf7a32f-bc60-45b0-ad91-d3acd6813cd0/download/egresos-2018.csv",
+            2019: "https://catalogo.datos.gba.gob.ar/dataset/baf07a7a-8cd2-47ad-bae0-52c6f3b45bb7/resource/6a839c98-9cbb-475a-840f-4b0e29c378e0/download/egresos-2019.csv",
+            2020: "https://catalogo.datos.gba.gob.ar/dataset/baf07a7a-8cd2-47ad-bae0-52c6f3b45bb7/resource/06d4b138-11cb-4b72-a87b-bff09f6af07d/download/egresos-2020.csv",
+        }
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        for año, url in URLS.items():
+            destino = raw_dir / f"egresos-{año}.csv"
+            try:
+                r = requests.get(url, stream=True, timeout=120, verify=False)
+                r.raise_for_status()
+                with open(destino, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        f.write(chunk)
+            except Exception:
+                pass
+
+    return cargar_dataset(raw_dir=raw_dir)
 
 
 try:
     df = cargar()
-except FileNotFoundError as e:
-    st.error(
-        "No se encontraron los datos. Corré primero:\n\n"
-        "```\npython download_data.py\n```\n\n"
-        "O como fallback:\n\n"
-        "```\npython generate_synthetic_data.py\n```"
-    )
+except Exception as e:
+    st.error(f"Error cargando datos: {e}")
     st.stop()
 
 
