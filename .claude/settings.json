@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(python *)",
+      "PowerShell(C:\\venv\\salud\\Scripts\\python *)",
+      "PowerShell(C:\\venv\\salud\\Scripts\\jupyter *)",
+      "PowerShell(C:\\venv\\salud\\Scripts\\pip *)",
+      "PowerShell(git *)",
+      "Edit(**)"
+    ]
+  }
+}
